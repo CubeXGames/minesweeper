@@ -3,11 +3,13 @@
 #include <random>
 #include <cassert>
 #include <chrono>
+#include <thread>
 
 constexpr uint64_t BOARD_SIZE_X = 24;
 constexpr uint64_t BOARD_SIZE_Y = 20;
 constexpr int NUM_FLAGS = 99;
-constexpr uint64_t NUM_GAMES = 2000000;
+constexpr uint64_t NUM_GAMES = 1000000;
+constexpr int NUM_THREADS = 10;
 constexpr char MINE = 1;
 constexpr char NO_MINE = 0;
 
@@ -41,7 +43,7 @@ int main() {
 	auto begin = std::chrono::steady_clock::now();
 
 	for (uint64_t i = 0; i < NUM_GAMES; i++) {
-		
+
 		memset(currentBoard, 0, static_cast<size_t>((BOARD_SIZE_X + 2) * (BOARD_SIZE_Y + 2)));
 		memset(tileCounts, 0, sizeof(tileCounts));
 
@@ -57,8 +59,8 @@ int main() {
 
 		for (int j = BOARD_SIZE_X * BOARD_SIZE_Y - 1; j > 0; j--) {
 
-			xorshift128p();
-			int k = ((unsigned int)rngState.x[0]) % (j + 1);
+			if((j & 0b11) == 0) xorshift128p();
+			int k = ((unsigned int)((unsigned int*)(rngState.x))[j & 0b11]) % (j + 1);
 			char temp = access2DArray(currentBoard, j % BOARD_SIZE_X + 1, j / BOARD_SIZE_X + 1);
 			set2DArray(currentBoard, j % BOARD_SIZE_X + 1, j / BOARD_SIZE_X + 1, access2DArray(currentBoard, k % BOARD_SIZE_X + 1, k / BOARD_SIZE_X + 1));
 			set2DArray(currentBoard, k % BOARD_SIZE_X + 1, k / BOARD_SIZE_X + 1, temp);
@@ -104,7 +106,7 @@ int main() {
 	auto end = std::chrono::steady_clock::now();
 	float timeSpent = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() / 1000000.0f;
 
-	std::wcout << L"Finished in " << timeSpent << L" seconds with an average of " << timeSpent / NUM_GAMES * 1000000 << L" Âµs per game\n";
+	std::wcout << L"Finished in " << timeSpent << L" seconds with an average of " << timeSpent / NUM_GAMES * 1000000 << L" µs per game\n";
 	for (int i = 0; i < sizeof(numTilesFound) / sizeof(uint64_t); i++) {
 
 		std::cout << i << ": " << numTilesFound[i] << " / " << numTilesSearched << " or " << numTilesFound[i] / (float)numTilesSearched * 100 << "%, on average "
@@ -120,13 +122,15 @@ int main() {
 
 	distributionDataFile << '\n';
 	for (int i = 0; i < 9; i++) {
-		
+
 		for (int j = 0; j < BOARD_SIZE_X * BOARD_SIZE_Y; j++) {
 
-			distributionDataFile << tilesDistribution[BOARD_SIZE_X * BOARD_SIZE_Y * i + j] << ',';
+			distributionDataFile << tilesDistribution[BOARD_SIZE_X * BOARD_SIZE_Y * i + j];
+			if(j != BOARD_SIZE_X * BOARD_SIZE_Y - 1) distributionDataFile << ',';
 		}
 
-		distributionDataFile << '\n';
+		distributionDataFile.seekp((long)distributionDataFile.tellp() - 1);
+		if(i != 8) distributionDataFile << '\n';
 	}
 
 	delete[] tilesDistribution;
@@ -138,7 +142,7 @@ int main() {
 }
 
 char access2DArray(char* arr, int x, int y) {
-		
+
 	return arr[x + y * (BOARD_SIZE_X + 2)];
 }
 
